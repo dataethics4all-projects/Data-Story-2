@@ -1,0 +1,2 @@
+# Data-Story-2
+Data Story 2 describes the variations in GDPR violations' fines in Europe during 2020 and 2021. It highlights the most and least frequent types of violations by organzations in Europe that continue to threat Data Protection Regulations from various GDPR articles. The purpose is to raise awareness of companies and organizations worldwide (especialy Europe) about the importance of data privacy, protection and transparency, as well as educate end users about their personal data use and its limits.
