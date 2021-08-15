@@ -1,0 +1,312 @@
+---
+title: "Data Story 2"
+author: "Sarra Hannachi"
+date: "21/07/2021"
+output: html_document
+---
+
+
+<style>
+body {
+text-align: justify}
+title {
+font-style: bold}
+</style>
+
+<p>&nbsp;</p>
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+                ############## GDPR article violations' fines in Europe & UK ##############
+## Description:  
+The General Data Protection Regulation (EU) 2016/679 (GDPR) is a regulation in EU law on data protection and privacy in the European Union (EU) and the European Economic Area (EEA). It also addresses the transfer of personal data outside the EU and EEA areas. The GDPR aims primarily to give control to individuals over their personal data and to simplify the regulatory environment for international business by unifying the regulation within the EU.[1] Superseding the Data Protection Directive 95/46/EC, the regulation contains provisions and requirements related to the processing of personal data of individuals (formally called data subjects in the GDPR) who reside in the EEA, and applies to any enterprise—regardless of its location and the data subjects' citizenship or residence—that is processing the personal information of data subjects inside the EEA.
+### Source: https://www.enforcementtracker.com/ 
+
+
+## Data Cleaning
+
+```{r, warning = FALSE, include=FALSE, message=FALSE}
+## Basic data cleaning and organization ##
+
+#import
+library(readxl)
+data <- read_excel("GDPR_data.xlsx")
+#date
+data$Date <- as.Date(data$Date)
+#clean NA fines
+data$Fines <- as.factor(data$Fines)
+vec <- data$id[data$Fines == "Unknown" | data$Fines == "Only intention to issue fine"]
+data <- data[data$id %in% vec == F,]
+#Numerate fines
+data$Fines <- as.numeric(gsub(",", "", data$Fines))
+#Keep only 2020 & 2021
+data <- data[1:556,-10]
+View(data)
+#type (10 unique)
+data$Type <- as.factor(data$Type)
+levels(data$Type)
+#Authority (46 unique)
+data$Authority <- as.factor(data$Authority)
+levels(data$Authority)
+#Country (31 unique)
+data$Country <- as.factor(data$Country)
+levels(data$Country)
+#Controller
+data$Controller <- as.factor(data$Controller)
+levels(data$Controller)
+t <- as.data.frame.table(table(data$Controller))
+```
+
+## PLAN:
+
+```{r, warning = FALSE, include=FALSE, message=FALSE}
+                        ### Highlights ###
+#Viz 1#
+# Fines in time series (2021)         => LINE CHART (Animated gif)
+
+                        ### Story Body ###
+#Viz 2#
+# The most/least frequent violation types by the total GDPR fines amount
+#Viz 3#
+# countries/fines frequency?     => Progress BAR CHART  (Animated)
+# Emphasize on the most frequent countries in top 10
+#Viz 4#
+# Make a column chart of fines distribution in % by Industry of Data Controller
+```
+
+## Highlights:
+
+## Body:
+
+### Graph 1: Transitioning through time
+
+```{r}
+#Data Transformation
+library(dplyr)
+by_day <- group_by(data[,c(4,5)], Date)
+by_day <- summarise(by_day, TotalFines = sum(Fines))
+#Fines data by YEAR
+data_2020 <- by_day[1:150,]
+data_2021 <- by_day[151:250,]
+library(writexl)
+write_xlsx(data_2021,"GDPR data 2021.xlsx")
+data_2021$TotalFines <- data_2021$TotalFines/1000000
+#Min Fine
+data_2021$Date[data_2021$TotalFines == min(data_2021$TotalFines)]
+#Max Fine
+data_2021$Date[data_2021$TotalFines == max(data_2021$TotalFines)]
+#Average fine by type
+max(data$Fines[data$Type != "Insufficient legal basis for data processing" & data$Type != "Insufficient technical and organisational measures to ensure information security" & data$Type != "Non-compliance with general data processing principles" & data$Type != "Insufficient fulfilment of data subjects rights" & data$Type != "Insufficient fulfilment of information obligations"])
+levels(data$Type)
+```
+
+```{r}
+#load packages
+library(gganimate)
+library(ggplot2)
+library(ggthemes)
+library(extrafont)
+
+# Graph 1: 
+Sys.setlocale(category = "LC_ALL", locale = "english")
+graph1 <- data_2021 %>%
+  ggplot(aes(x=Date, y=TotalFines)) +
+  geom_line(color="deeppink4" ,size = 1, alpha = 0.6)+
+  labs(title = "Total Fines of GDPR Violations in Europe\n",
+       subtitle = "Year: 2021\n",
+       x = "\n\n\nDate",
+       y = "Fines (Million Euros)\n\n",
+       caption = "Source: GDPR Enforcement Tracker") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(),
+        panel.background = element_rect(fill = NA),
+        plot.title = element_text(hjust=0,size=20))+
+  scale_x_date(date_breaks="4 weeks", date_labels = "%b")
+graph1
+
+graph1.animated <- graph1 +
+  transition_reveal(Date)
+
+animate(graph1.animated, height = 400, width = 800, duration = 20, end_pause = 20)
+anim_save("reveal.gif",animation = last_animation())
+```
+
+### Graph 2: Donut Chart of TYPES (%)
+
+```{r}
+#Dataframe for Fines by Type
+by_t <- group_by(data[,c(9,5)], Type)
+by_t <- summarise(by_t, Total_Fines = sum(Fines))
+by_t <- mutate(by_t, Percentage = round(100*by_t$Total_Fines/sum(by_t$Total_Fines),2))
+by_t <- arrange(by_t, desc=Percentage)
+sum(by_t$Percentage)
+```
+
+
+### Graph 3: Racing Bar Charts (Country/weekly cumulative fines)
+
+* 2020
+```{r}
+library(lubridate)
+#original (2020)
+df_2020 <- data[223:556,c(2,4,5)]
+#daily quarter
+df_2020$Quarter <- quarter(df_2020$Date)
+#group by Quarter and Country
+df_2020$Quarter [df_2020$Quarter == "1"] <- "Q1 2020"
+df_2020$Quarter [df_2020$Quarter == "2"] <- "Q2 2020"
+df_2020$Quarter [df_2020$Quarter == "3"] <- "Q3 2020"
+df_2020$Quarter [df_2020$Quarter == "4"] <- "Q4 2020"
+df_2020$Quarter <- as.factor(df_2020$Quarter)
+#tidy data
+df_2020$month <- month(df_2020$Date,label = F)
+df_2020$Date <- paste("week", ceiling(day(df_2020$Date) / 7))
+df_2020 <- transform(df_2020, week=paste(Date, month, "2020",sep=" "))
+df_2020$week <- factor(df_2020$week, levels = unique(df_2020$week))
+#transform data weekly
+library(dplyr)
+duff <- df_2020 %>% group_by(Country,week) %>% summarise(Total_fines=sum(Fines))
+duff <- arrange(duff,week)
+#Tidy data
+library(reshape2)
+tidy_ <- dcast(duff, Country ~ week, value.var = "Total_fines")
+tidy_[is.na(tidy_)] <- 0
+tidy_ <- rev(tidy_)
+tidy_ <- tidy_[,c(57,1:56)]
+td <- tidy_[,-1]
+#save new dataframe
+write.csv(tidy_,"tidy_2020.csv")
+#cum sum 
+td <- t(td)
+for (j in 1:ncol(td)) {
+   for (i in 2:nrow(td)) {
+        td[i,j] <- td[i,j] + td[i-1,j]
+    }
+}
+td <- t(td)
+write.csv(td,"tidy_2020.csv")
+
+```
+
+* 2021
+```{r}
+#original (2021)
+df_2021 <- data[1:222,c(2,4,5)]
+df_2021$Date <- quarter(df_2021$Date)
+#group by Quarter and Country
+df_2021 <- df_2021 %>% group_by(Country, Date) %>% summarise(Total_fines=sum(Fines))
+df_2021$Date <- as.character(df_2021$Date)
+df_2021$Date [df_2021$Date == "1"] <- "Q1 2021"
+df_2021$Date [df_2021$Date == "2"] <- "Q2 2021"
+df_2021$Date [df_2021$Date == "3"] <- "Q3 2021"
+df_2021$Date [df_2021$Date == "4"] <- "Q4 2021"
+df_2021$Date <- as.factor(df_2021$Date)
+```
+
+## 2020 and 2021 combined together
+
+```{r}
+######♦ 2020 ########
+library(lubridate)
+#original (2020)
+df_2020 <- data[223:556,c(2,4,5)]
+#daily quarter
+df_2020$Quarter <- quarter(df_2020$Date)
+#group by Quarter and Country
+df_2020$Quarter [df_2020$Quarter == "1"] <- "Q1 2020"
+df_2020$Quarter [df_2020$Quarter == "2"] <- "Q2 2020"
+df_2020$Quarter [df_2020$Quarter == "3"] <- "Q3 2020"
+df_2020$Quarter [df_2020$Quarter == "4"] <- "Q4 2020"
+df_2020$Quarter <- as.factor(df_2020$Quarter)
+#tidy data
+df_2020$month <- month(df_2020$Date,label = F)
+df_2020$Date <- paste("week", ceiling(day(df_2020$Date) / 7))
+df_2020 <- transform(df_2020, week=paste(Date, month, "2020",sep=" "))
+df_2020$week <- factor(df_2020$week, levels = unique(df_2020$week))
+######♦ 2021 ########
+#original (2021)
+df_2021 <- data[1:222,c(2,4,5)]
+df_2021$Quarter <- quarter(df_2021$Date)
+#group by Quarter and Country
+df_2021$Quarter [df_2021$Quarter == "1"] <- "Q1 2021"
+df_2021$Quarter [df_2021$Quarter == "2"] <- "Q2 2021"
+df_2021$Quarter [df_2021$Quarter == "3"] <- "Q3 2021"
+df_2021$Quarter [df_2021$Quarter == "4"] <- "Q4 2021"
+df_2021$Quarter <- as.factor(df_2021$Quarter)
+#tidy data
+df_2021$month <- month(df_2021$Date,label = F)
+df_2021$Date <- paste("week", ceiling(day(df_2021$Date) / 7))
+df_2021 <- transform(df_2021, week=paste(Date, month, "2021",sep=" "))
+df_2021$week <- factor(df_2021$week, levels = unique(df_2021$week))
+#### merge #####
+df_all <- rbind(df_2021,df_2020)
+#transform data weekly
+library(dplyr)
+df_all <- df_all %>% group_by(Country,week) %>% summarise(Total_fines=sum(Fines))
+df_all <- arrange(df_all,week)
+View(df_all)
+#Tidy data
+library(reshape2)
+tidy_all <- dcast(df_all, Country ~ week, value.var = "Total_fines")
+tidy_all[is.na(tidy_all)] <- 0
+tidy_all <- rev(tidy_all)
+tidy_all <- tidy_all[,c(88,1:87)]
+td <- tidy_all[,-1]
+#save new dataframe
+write.csv(tidy_all,"tidy_all.csv")
+#cum sum 
+td <- t(td)
+for (j in 1:ncol(td)) {
+   for (i in 2:nrow(td)) {
+        td[i,j] <- td[i,j] + td[i-1,j]
+    }
+}
+td <- t(td)
+View(td)
+countries <- as.data.frame(tidy_all$Country)
+td <- cbind(countries,td)
+colnames(td)[1] <- "Country"
+write.csv(td,"tidy_2020_2021.csv")
+```
+
+
+### Graph 4: % Chart of top and least fined controllers' Industries
+
+```{r include = FALSE}
+#Dataframe for Fines by Controller
+data$Industry <- as.character(data$Industry)
+by_c <- group_by(data[,c(7,5)], Industry)
+by_c <- summarise(by_c, Total_Fines = sum(Fines))
+by_c <- mutate(by_c, Percentage = round(100*by_c$Total_Fines/sum(by_c$Total_Fines),2))
+by_c <- arrange(by_c, desc=Percentage)
+by_c$Industry[by_c$Industry == "Not assigned"] <- "Other"
+by_c$Industry <- as.factor(by_c$Industry)
+by_c$Total_Fines[11] /sum(by_c$Total_Fines)
+```
+
+* simple Pie Chart example:
+```{r}
+library(RColorBrewer)
+library(plotrix)
+pie3D(by_c$Percentage,
+      col=brewer.pal(11,"Pastel2"),
+      labels = by_c$Industry,
+      labelcex = 1,
+      explode=0.1,
+      theta = 0.8,
+      main="Percentage Distribution of Fines by Industry")
+```
+`
+
+
+
+
+
+
+
+
+
+
+
+
